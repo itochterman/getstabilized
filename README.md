@@ -68,11 +68,17 @@ A "new listing" pill appears within a second. `npm run worker` does this on a sc
 npm run import:buildings -- --city sf
 ```
 
-**Real listings** from [RentCast](https://www.rentcast.io/api): add `RENTCAST_API_KEY` to `.env`, then
+**Real listings** from [RentCast](https://www.rentcast.io/api), including the listing agent and brokerage contacts, MLS number, and the unit's past listing prices. Add `RENTCAST_API_KEY` to `.env`, then
 
 ```bash
-npm run ingest -- --city sf --source rentcast
+npm run ingest -- --source rentcast
 ```
+
+RentCast's free plan includes 50 requests a month and bills each extra request, so the worker budgets them. Each request returns up to 500 listings. By default it fetches only San Francisco (`RENTCAST_CITIES=sf`), at most once every 24 hours (`RENTCAST_HOURS_BETWEEN`), with one request per fetch (`RENTCAST_PAGES_PER_RUN`), and it refuses to make more than 45 requests in a calendar month (`RENTCAST_MONTHLY_LIMIT`). Usage is counted in the database, so the cap holds across machines and restarts. `npm -w @getstabilized/worker run cli -- stats` shows this month's count.
+
+Because a capped fetch sees only part of the market, RentCast listings are hidden after 14 days without being seen again, instead of the moment a fetch misses them.
+
+To switch the live site from sample data to real listings: add the `RENTCAST_API_KEY` secret and a `LISTING_SOURCES` variable set to `rentcast` in GitHub Actions, then run the **Ingest listings** workflow once with `retire-samples` and once with `ingest`.
 
 The DataSF and RentCast adapters follow each service's published field names, but they haven't been run against the live services yet. Run each once and check the counts it prints before turning on the scheduled worker.
 

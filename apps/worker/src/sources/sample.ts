@@ -12,8 +12,7 @@ export function loadSampleListings(city: CityRules): RawListing[] {
 /** Fixture listings that ship with the repo. Works with no network or API keys. */
 export const sampleSource: ListingSource = {
   id: "sample",
-  fullSnapshot: true,
   async fetch(city) {
-    return loadSampleListings(city);
+    return { listings: loadSampleListings(city), complete: true };
   },
 };

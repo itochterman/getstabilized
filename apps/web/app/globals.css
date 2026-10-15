@@ -156,6 +156,18 @@ a{color:inherit}
 .btn{border:0;background:var(--brand);color:var(--brand-ink);border-radius:12px;padding:12px;font-weight:700}
 .btn:disabled{opacity:.6;cursor:default}
 
+/* Contacts and rent history */
+.contacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.contact{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0;font-size:14px}
+.contact .role{font-size:12px;color:var(--ink-3);font-weight:600}
+.contact a{color:var(--brand);font-weight:600;text-decoration:none;overflow-wrap:anywhere}
+.contact a:hover{text-decoration:underline}
+.history{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.history li{display:flex;justify-content:space-between;padding:8px 14px;font-size:14px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.history li:first-child{border-top:0}
+.history li span{color:var(--ink-2)}
+.history li.now{background:var(--soft)}
+
 /* Standalone listing page */
 .page-detail{padding-block:28px 60px;display:flex;justify-content:center}
 .page-detail .sheet{max-height:none;box-shadow:var(--shadow)}

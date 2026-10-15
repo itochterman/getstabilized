@@ -1,5 +1,5 @@
 import { isCityId, type CityId } from "./cities";
-import type { PropertyType, Reason, Tier } from "./types";
+import type { ListingContact, PriceEvent, PropertyType, Reason, Tier } from "./types";
 
 export type SortKey = "best" | "cheap" | "likely" | "newest";
 
@@ -35,6 +35,10 @@ export interface ListingDTO {
   tier: Tier;
   reasons: Reason[];
   firstSeen: string;
+  contacts: ListingContact[];
+  mlsNumber: string | null;
+  priceHistory: PriceEvent[];
+  daysOnMarket: number | null;
 }
 
 const EXEMPT_TYPES: PropertyType[] = ["condo", "coop", "single_family", "townhouse"];

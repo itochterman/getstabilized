@@ -1,7 +1,7 @@
 import { assess, matchesFilters, normalizeAddress, type CityRules } from "@getstabilized/core";
 import {
-  activeSavedSearches, deactivateUnseen, findBuilding, finishRun, markAlertDelivered, publishEvent,
-  recordAlert, startRun, upsertListing, type SavedSearch,
+  activeSavedSearches, deactivateStale, deactivateUnseen, deleteRun, findBuilding, finishRun, markAlertDelivered,
+  publishEvent, recordAlert, startRun, upsertListing, type SavedSearch,
 } from "@getstabilized/db";
 import type { ListingSource, RawListing } from "./sources/types";
 import type { Notifier } from "./notify";
@@ -14,6 +14,7 @@ export interface RunStats {
   updated: number;
   deactivated: number;
   alerts: number;
+  skipped?: string;
   error?: string;
 }
 
@@ -22,7 +23,13 @@ export async function ingest(source: ListingSource, city: CityRules, notifier: N
   const run = await startRun(source.id, city.id);
   const stats: RunStats = { source: source.id, city: city.id, fetched: 0, inserted: 0, updated: 0, deactivated: 0, alerts: 0 };
   try {
-    const raw = await source.fetch(city);
+    const result = await source.fetch(city);
+    if (result.skipped && result.listings.length === 0) {
+      await deleteRun(run.id);
+      log(`[${source.id}/${city.id}] skipped: ${result.skipped}`);
+      return { ...stats, skipped: result.skipped };
+    }
+    const raw = result.listings;
     stats.fetched = raw.length;
     const searches = await activeSavedSearches(city.id);
     for (const r of raw) {
@@ -36,7 +43,8 @@ export async function ingest(source: ListingSource, city: CityRules, notifier: N
         stats.updated++;
       }
     }
-    if (source.fullSnapshot) stats.deactivated = await deactivateUnseen(source.id, city.id, run.startedAt);
+    if (result.complete) stats.deactivated = await deactivateUnseen(source.id, city.id, run.startedAt);
+    else if (source.staleAfterDays) stats.deactivated = await deactivateStale(source.id, city.id, source.staleAfterDays);
   } catch (e) {
     stats.error = e instanceof Error ? e.message : String(e);
   }
@@ -62,6 +70,7 @@ async function storeListing(sourceId: string, city: CityRules, r: RawListing): P
     building,
     listedYearBuilt: r.yearBuilt ?? null,
     listedUnits: r.units ?? null,
+    priceHistory: r.priceHistory,
   });
   const saved = await upsertListing({
     source: sourceId,
@@ -88,6 +97,10 @@ async function storeListing(sourceId: string, city: CityRules, r: RawListing): P
     tier: a.tier,
     reasons: a.reasons,
     listedAt: r.listedAt ? new Date(r.listedAt) : null,
+    contacts: r.contacts ?? [],
+    mlsNumber: r.mlsNumber ?? null,
+    priceHistory: r.priceHistory ?? [],
+    daysOnMarket: r.daysOnMarket ?? null,
   });
   return {
     ...saved, city: city.id, beds: r.beds, rent: r.rent, tier: a.tier, noFee: r.noFee ?? null,

@@ -28,6 +28,11 @@ export interface CityRules {
   supportKeywords: RegExp[];
   /** Tax programs that require stabilization (NYC only today). */
   taxBenefitsRequireCoverage: boolean;
+  /**
+   * True where a regulated unit's rent can reset to market when a tenant moves out
+   * (California's vacancy decontrol). Past listing prices then say little about regulation.
+   */
+  vacancyResetAllowed: boolean;
   agency: { name: string; url: string };
 }
 
@@ -50,6 +55,7 @@ export const CITIES: Record<CityId, CityRules> = {
     strongKeywords: [/\brent[- ]controll?ed\b/i, /\bunder rent control\b/i],
     supportKeywords: [/annual allowable increase/i, /\brent board\b/i, /just cause/i],
     taxBenefitsRequireCoverage: false,
+    vacancyResetAllowed: true,
     agency: { name: "SF Rent Board", url: "https://sf.gov/departments/rent-board" },
   },
   la: {
@@ -66,6 +72,7 @@ export const CITIES: Record<CityId, CityRules> = {
     strongKeywords: [/\bRSO\b/, /\brent[- ]stabili[sz]ed\b/i, /\brent[- ]controll?ed\b/i],
     supportKeywords: [/annual allowable increase/i, /\bLAHD\b/, /registered unit/i],
     taxBenefitsRequireCoverage: false,
+    vacancyResetAllowed: true,
     agency: { name: "LA Housing Department", url: "https://housing.lacity.gov" },
   },
   oak: {
@@ -82,6 +89,7 @@ export const CITIES: Record<CityId, CityRules> = {
     strongKeywords: [/\brent[- ]controll?ed\b/i, /rent adjustment program/i],
     supportKeywords: [/\bRAP\b/, /allowable increase/i, /just cause/i],
     taxBenefitsRequireCoverage: false,
+    vacancyResetAllowed: true,
     agency: { name: "Oakland Rent Adjustment Program", url: "https://www.oaklandca.gov/topics/rent-adjustment-program" },
   },
   nyc: {
@@ -98,6 +106,7 @@ export const CITIES: Record<CityId, CityRules> = {
     strongKeywords: [/\brent[- ]stabili[sz]ed\b/i],
     supportKeywords: [/lease rider/i, /\bDHCR\b/i, /legal (regulated )?rent/i, /preferential rent/i, /renewal lease/i],
     taxBenefitsRequireCoverage: true,
+    vacancyResetAllowed: false,
     agency: { name: "NY State HCR", url: "https://hcr.ny.gov/rent-stabilization-and-rent-control" },
   },
   dc: {
@@ -114,6 +123,7 @@ export const CITIES: Record<CityId, CityRules> = {
     strongKeywords: [/\brent[- ]stabili[sz]ed\b/i, /\brent[- ]controll?ed\b/i],
     supportKeywords: [/rental accommodations/i, /\bRAD\b/, /CPI increase/i],
     taxBenefitsRequireCoverage: false,
+    vacancyResetAllowed: false,
     agency: { name: "DC Housing and Community Development", url: "https://dhcd.dc.gov" },
   },
 };

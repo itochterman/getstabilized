@@ -1,5 +1,5 @@
 import { CITIES, NEGATIVE_KEYWORDS, type CityId } from "./cities";
-import type { Assessment, BuildingFacts, PropertyType, Reason, Tier } from "./types";
+import type { Assessment, BuildingFacts, PriceEvent, PropertyType, Reason, Tier } from "./types";
 
 export interface ScoringInput {
   city: CityId;
@@ -11,6 +11,8 @@ export interface ScoringInput {
   /** Year built and unit count as stated by the listing source, used when no record matched. */
   listedYearBuilt?: number | null;
   listedUnits?: number | null;
+  /** Earlier listings of the same unit, oldest first or in any order. */
+  priceHistory?: PriceEvent[];
 }
 
 export const POINTS = {
@@ -29,7 +31,45 @@ export const POINTS = {
   coveredBuildingUnitsUnknown: 25,
   taxBenefit: 30,
   registered: 35,
+  historySmallIncreases: 12,
+  historyBigJump: -10,
 } as const;
+
+/** Largest yearly increase we still read as consistent with regulated renewals. */
+const SMALL_ANNUAL_INCREASE = 0.06;
+/** A jump between listings this large looks like a market reset. */
+const BIG_JUMP = 0.15;
+
+export interface HistoryReading {
+  kind: "small_increases" | "big_jump";
+  annualPct: number;
+}
+
+/**
+ * Compare the current rent with earlier listings of the same unit. Returns null when there
+ * is not enough history to say anything.
+ */
+export function readPriceHistory(rent: number, history: PriceEvent[] | undefined, now = new Date()): HistoryReading | null {
+  const past = (history ?? [])
+    .filter((h) => h.price > 0 && /^\d{4}-\d{2}-\d{2}/.test(h.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  // Drop entries within 60 days of today; they are usually the current listing itself.
+  const cutoff = new Date(now.getTime() - 60 * 864e5).toISOString().slice(0, 10);
+  const prior = past.filter((h) => h.date < cutoff);
+  if (prior.length === 0) return null;
+  const points = [...prior.map((h) => ({ t: Date.parse(h.date), p: h.price })), { t: now.getTime(), p: rent }];
+  let maxAnnual = -Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!, b = points[i]!;
+    const years = Math.max((b.t - a.t) / (365.25 * 864e5), 0.25);
+    const change = b.p / a.p - 1;
+    const annual = Math.pow(b.p / a.p, 1 / years) - 1;
+    if (change >= BIG_JUMP && annual > SMALL_ANNUAL_INCREASE) return { kind: "big_jump", annualPct: Math.round(change * 100) };
+    maxAnnual = Math.max(maxAnnual, annual);
+  }
+  if (maxAnnual >= 0 && maxAnnual <= SMALL_ANNUAL_INCREASE) return { kind: "small_increases", annualPct: Math.round(maxAnnual * 1000) / 10 };
+  return null;
+}
 
 /** Raw points become a 1 to 99 score with diminishing returns, so no listing reads as certain. */
 export function pointsToScore(points: number): number {
@@ -110,7 +150,14 @@ export function assess(input: ScoringInput): Assessment {
     }
   }
 
-  // 5. Programs that require regulation
+  // 5. Rent history. Only meaningful where a vacancy can't reset the rent to market.
+  if (!city.vacancyResetAllowed) {
+    const h = readPriceHistory(input.rent, input.priceHistory);
+    if (h?.kind === "small_increases") add("history_small_increases", POINTS.historySmallIncreases, `Past listings of this unit show the rent rising about ${h.annualPct}% a year at most, in line with capped increases.`);
+    if (h?.kind === "big_jump") add("history_big_jump", POINTS.historyBigJump, `The rent jumped ${h.annualPct}% from an earlier listing of this unit, which is more typical of market rate pricing.`);
+  }
+
+  // 6. Programs that require regulation
   if (input.building?.taxBenefit && city.taxBenefitsRequireCoverage) {
     add("tax_benefit", POINTS.taxBenefit, `The building receives the ${input.building.taxBenefit} tax benefit, which requires stabilized rents.`);
   }

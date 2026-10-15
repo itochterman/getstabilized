@@ -1,18 +1,24 @@
-# Runs the listing worker on a schedule using GitHub's free Actions minutes,
-# so hosting needs no always-on worker. Add DATABASE_URL (and RENTCAST_API_KEY if
-# you use it) under Settings > Secrets and variables > Actions.
+# Runs the listing worker once a day on GitHub's free Actions minutes.
+#
+# Secrets (Settings > Secrets and variables > Actions > Secrets):
+#   DATABASE_URL       required
+#   RENTCAST_API_KEY   needed when LISTING_SOURCES includes rentcast
+# Variables (same page > Variables), all optional:
+#   LISTING_SOURCES          default "sample,demo"; set to "rentcast" for real listings
+#   RENTCAST_CITIES          default "sf"
+#   RENTCAST_MONTHLY_LIMIT   default 45 (RentCast's free plan includes 50 requests a month)
 name: Ingest listings
 
 on:
   schedule:
-    - cron: "17 * * * *" # hourly
+    - cron: "17 14 * * *" # daily, about 7am Pacific
   workflow_dispatch:
     inputs:
       command:
-        description: "seed (first time) or ingest"
+        description: "What to run"
         default: ingest
         type: choice
-        options: [ingest, seed]
+        options: [ingest, seed, retire-samples, stats]
 
 concurrency:
   group: ingest
@@ -26,6 +32,11 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RENTCAST_API_KEY: ${{ secrets.RENTCAST_API_KEY }}
       LISTING_SOURCES: ${{ vars.LISTING_SOURCES || 'sample,demo' }}
+      RENTCAST_CITIES: ${{ vars.RENTCAST_CITIES || 'sf' }}
+      RENTCAST_MONTHLY_LIMIT: ${{ vars.RENTCAST_MONTHLY_LIMIT || '45' }}
+      RENTCAST_HOURS_BETWEEN: "24"
+      RENTCAST_PAGES_PER_RUN: "1"
+      COMMAND: ${{ github.event.inputs.command || 'ingest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,9 +44,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Seed
-        if: ${{ github.event.inputs.command == 'seed' }}
-        run: npm run seed
-      - name: Ingest
-        if: ${{ github.event.inputs.command != 'seed' }}
-        run: npm run db:migrate && npm run ingest
+      - run: npm run db:migrate
+      - name: Run
+        run: |
+          case "$COMMAND" in
+            seed)           npm run seed ;;
+            retire-samples) npm -w @getstabilized/worker run cli -- retire --source sample,demo ;;
+            stats)          npm -w @getstabilized/worker run cli -- stats ;;
+            *)              npm run ingest ;;
+          esac
+      - name: Usage
+        if: always()
+        run: npm -w @getstabilized/worker run cli -- stats

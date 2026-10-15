@@ -1,5 +1,5 @@
 import { CITIES, CITY_IDS, isCityId, type CityId } from "@getstabilized/core";
-import { closePool, loadEnv, migrate, stats, upsertBuildings } from "@getstabilized/db";
+import { apiUsageThisMonth, closePool, lastSuccessfulRun, loadEnv, migrate, reserveApiRequest, retireSources, stats, upsertBuildings } from "@getstabilized/db";
 import { fetchAssessorRows, mapAssessorRow, readAssessorFile } from "./importers/datasf";
 import { consoleNotifier } from "./notify";
 import { ingest } from "./pipeline";
@@ -22,8 +22,19 @@ const HELP = `GetStabilized worker
       Migrate, load the sample SF buildings, and ingest sample listings for every city.
 
   stats
-      Show listing and building counts per city.
+      Show listing and building counts per city, and this month's RentCast usage.
+
+  retire --source sample,demo
+      Hide every listing from those sources (for example, sample data once real listings flow).
+
+RentCast budget (environment variables):
+  RENTCAST_CITIES          cities to fetch, default "sf"
+  RENTCAST_HOURS_BETWEEN   minimum hours between fetches per city, default 24
+  RENTCAST_PAGES_PER_RUN   requests per city per fetch (500 listings each), default 1
+  RENTCAST_MONTHLY_LIMIT   hard stop for requests per calendar month, default 45
 `;
+
+const num = (v: string | undefined, d: number) => (v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Number(v) : d);
 
 function args(argv: string[]) {
   const flags: Record<string, string | true> = {};
@@ -55,7 +66,25 @@ function sources(v: string | true | undefined): ListingSource[] {
     if (id === "rentcast") {
       const key = process.env.RENTCAST_API_KEY;
       if (!key) throw new Error("The rentcast source needs RENTCAST_API_KEY in .env");
-      return makeRentcastSource(key);
+      const allowed = (process.env.RENTCAST_CITIES || "sf").split(",").map((c) => c.trim());
+      const hours = num(process.env.RENTCAST_HOURS_BETWEEN, 24);
+      const limit = num(process.env.RENTCAST_MONTHLY_LIMIT, 45);
+      return makeRentcastSource(key, {
+        maxPagesPerRun: num(process.env.RENTCAST_PAGES_PER_RUN, 1),
+        baseUrl: process.env.RENTCAST_BASE_URL,
+        budget: {
+          reserve: () => reserveApiRequest("rentcast", limit),
+          async shouldSkip(city) {
+            if (!allowed.includes(city.id)) return `not in RENTCAST_CITIES (${allowed.join(",")})`;
+            const last = await lastSuccessfulRun("rentcast", city.id);
+            // Small allowance so a daily schedule that drifts a few minutes still runs.
+            if (last && Date.now() - last.getTime() < hours * 3600_000 - 15 * 60_000) {
+              return `fetched ${Math.round((Date.now() - last.getTime()) / 3600_000)}h ago; waits ${hours}h between fetches`;
+            }
+            return null;
+          },
+        },
+      });
     }
     throw new Error(`Unknown source: ${id}`);
   });
@@ -115,7 +144,14 @@ async function main() {
       return runIngest({ source: "sample" });
     case "stats":
       console.table(await stats());
+      console.log(`RentCast requests this month: ${await apiUsageThisMonth("rentcast")} of ${num(process.env.RENTCAST_MONTHLY_LIMIT, 45)}`);
       return;
+    case "retire": {
+      const list = typeof flags.source === "string" ? flags.source.split(",").map((x) => x.trim()) : [];
+      if (list.length === 0) throw new Error("Name the sources to retire, e.g. --source sample,demo");
+      console.log(`hid ${await retireSources(list)} listings from ${list.join(", ")}`);
+      return;
+    }
     default:
       console.log(HELP);
   }

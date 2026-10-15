@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assess, pointsToScore, rentShape, tierFor, type BuildingFacts } from "../src";
+import { assess, pointsToScore, readPriceHistory, rentShape, tierFor, type BuildingFacts } from "../src";
 
 const oldSfBuilding: BuildingFacts = { yearBuilt: 1924, units: 12, useType: "apartment", taxBenefit: null, registered: false };
 
@@ -72,5 +72,27 @@ describe("assess", () => {
     const a = assess({ city: "sf", rent: 3150, description: "Rent controlled", propertyType: "apartment", building: oldSfBuilding });
     expect(a.reasons[0]?.direction).toBe("up");
     expect(a.reasons.at(-1)?.direction).toBe("down");
+  });
+});
+
+describe("rent history", () => {
+  const now = new Date("2026-10-01");
+  it("reads small yearly increases", () => {
+    const h = readPriceHistory(2347.18, [{ date: "2022-09-01", price: 2150, event: "Rental Listing" }], now);
+    expect(h?.kind).toBe("small_increases");
+  });
+  it("flags a big jump between listings", () => {
+    expect(readPriceHistory(3200, [{ date: "2025-06-01", price: 2500, event: "Rental Listing" }], now)?.kind).toBe("big_jump");
+  });
+  it("ignores the current listing and empty history", () => {
+    expect(readPriceHistory(2400, [{ date: "2026-09-20", price: 2400, event: "Rental Listing" }], now)).toBeNull();
+    expect(readPriceHistory(2400, [], now)).toBeNull();
+  });
+  it("counts in NYC but not where vacancy resets rent", () => {
+    const history = [{ date: "2022-01-01", price: 2100, event: "Rental Listing" }];
+    const nyc = assess({ city: "nyc", rent: 2347.18, description: "", propertyType: "apartment", building: null, priceHistory: history });
+    const sf = assess({ city: "sf", rent: 2347.18, description: "", propertyType: "apartment", building: null, priceHistory: history });
+    expect(nyc.reasons.some((r) => r.code === "history_small_increases")).toBe(true);
+    expect(sf.reasons.some((r) => r.code.startsWith("history"))).toBe(false);
   });
 });

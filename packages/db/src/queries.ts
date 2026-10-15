@@ -1,4 +1,4 @@
-import type { BuildingFacts, CityId, ListingDTO, PropertyType, Reason, SearchFilters, SortKey, Tier } from "@getstabilized/core";
+import type { BuildingFacts, CityId, ListingContact, ListingDTO, PriceEvent, PropertyType, Reason, SearchFilters, SortKey, Tier } from "@getstabilized/core";
 import { EXEMPT_PROPERTY_TYPES } from "@getstabilized/core";
 import { getPool, LISTING_CHANNEL } from "./pool";
 
@@ -82,26 +82,47 @@ export interface ListingWrite {
   tier: Tier;
   reasons: Reason[];
   listedAt: Date | null;
+  contacts: ListingContact[];
+  mlsNumber: string | null;
+  priceHistory: PriceEvent[];
+  daysOnMarket: number | null;
 }
 
 export async function upsertListing(l: ListingWrite): Promise<{ id: number; inserted: boolean }> {
   const { rows } = await getPool().query(
     `INSERT INTO listings (source, source_id, city, title, address, address_norm, neighborhood, beds, baths, rent, sqft,
-        description, url, no_fee, property_type, year_built, units, lat, lng, building_id, score, tier, reasons, listed_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+        description, url, no_fee, property_type, year_built, units, lat, lng, building_id, score, tier, reasons, listed_at,
+        contacts, mls_number, price_history, days_on_market)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
      ON CONFLICT (source, source_id) DO UPDATE SET
        title = EXCLUDED.title, address = EXCLUDED.address, address_norm = EXCLUDED.address_norm,
        neighborhood = EXCLUDED.neighborhood, beds = EXCLUDED.beds, baths = EXCLUDED.baths, rent = EXCLUDED.rent,
        sqft = EXCLUDED.sqft, description = EXCLUDED.description, url = EXCLUDED.url, no_fee = EXCLUDED.no_fee,
        property_type = EXCLUDED.property_type, year_built = EXCLUDED.year_built, units = EXCLUDED.units,
        lat = EXCLUDED.lat, lng = EXCLUDED.lng, building_id = EXCLUDED.building_id, score = EXCLUDED.score,
-       tier = EXCLUDED.tier, reasons = EXCLUDED.reasons, status = 'active', last_seen = now()
+       tier = EXCLUDED.tier, reasons = EXCLUDED.reasons, contacts = EXCLUDED.contacts, mls_number = EXCLUDED.mls_number,
+       price_history = EXCLUDED.price_history, days_on_market = EXCLUDED.days_on_market, status = 'active', last_seen = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [l.source, l.sourceId, l.city, l.title, l.address, l.addressNorm, l.neighborhood, l.beds, l.baths, l.rent, l.sqft,
      l.description, l.url, l.noFee, l.propertyType, l.yearBuilt, l.units, l.lat, l.lng, l.buildingId, l.score, l.tier,
-     JSON.stringify(l.reasons), l.listedAt],
+     JSON.stringify(l.reasons), l.listedAt, JSON.stringify(l.contacts), l.mlsNumber, JSON.stringify(l.priceHistory), l.daysOnMarket],
   );
   return { id: rows[0].id, inserted: rows[0].inserted };
+}
+
+/** Mark listings unseen for `days` as inactive, for sources that only see part of the market each run. */
+export async function deactivateStale(source: string, city: CityId, days: number): Promise<number> {
+  const res = await getPool().query(
+    `UPDATE listings SET status = 'inactive' WHERE source = $1 AND city = $2 AND status = 'active' AND last_seen < now() - make_interval(days => $3)`,
+    [source, city, days],
+  );
+  return res.rowCount ?? 0;
+}
+
+/** Hide every listing from the given sources, e.g. sample data once real listings arrive. */
+export async function retireSources(sources: string[]): Promise<number> {
+  const res = await getPool().query(`UPDATE listings SET status = 'inactive' WHERE source = ANY($1) AND status = 'active'`, [sources]);
+  return res.rowCount ?? 0;
 }
 
 /** Mark listings from a full snapshot source as gone when a run no longer sees them. */
@@ -118,7 +139,7 @@ const SELECT_LISTING = `
          l.url, l.no_fee, l.property_type,
          COALESCE(b.year_built, l.year_built) AS year_built, COALESCE(b.units, l.units) AS units,
          (l.building_id IS NOT NULL) AS building_matched,
-         l.score, l.tier, l.reasons, l.first_seen
+         l.score, l.tier, l.reasons, l.first_seen, l.contacts, l.mls_number, l.price_history, l.days_on_market
   FROM listings l LEFT JOIN buildings b ON b.id = l.building_id`;
 
 function toDTO(r: any): ListingDTO {
@@ -128,6 +149,7 @@ function toDTO(r: any): ListingDTO {
     noFee: r.no_fee, propertyType: r.property_type, yearBuilt: r.year_built, units: r.units,
     buildingMatched: r.building_matched, score: r.score, tier: r.tier, reasons: r.reasons,
     firstSeen: new Date(r.first_seen).toISOString(),
+    contacts: r.contacts ?? [], mlsNumber: r.mls_number, priceHistory: r.price_history ?? [], daysOnMarket: r.days_on_market,
   };
 }
 
@@ -219,11 +241,51 @@ export async function startRun(source: string, city: CityId): Promise<{ id: numb
   return { id: rows[0].id, startedAt: rows[0].started_at };
 }
 
+export async function deleteRun(id: number): Promise<void> {
+  await getPool().query(`DELETE FROM ingest_runs WHERE id = $1`, [id]);
+}
+
 export async function finishRun(id: number, stats: { fetched: number; inserted: number; updated: number; deactivated: number; error?: string }): Promise<void> {
   await getPool().query(
     `UPDATE ingest_runs SET finished_at = now(), fetched = $2, inserted = $3, updated = $4, deactivated = $5, error = $6 WHERE id = $1`,
     [id, stats.fetched, stats.inserted, stats.updated, stats.deactivated, stats.error ?? null],
   );
+}
+
+/* ---------- Paid API budgets ---------- */
+
+function monthKey(d = new Date()): string {
+  return d.toISOString().slice(0, 7);
+}
+
+/**
+ * Atomically count one request against this month's budget. Returns false, and counts
+ * nothing, once `limit` requests have been made this month.
+ */
+export async function reserveApiRequest(provider: string, limit: number): Promise<boolean> {
+  if (!(limit > 0)) return false;
+  const { rows } = await getPool().query(
+    `INSERT INTO api_usage (provider, month, requests) VALUES ($1, $2, 1)
+     ON CONFLICT (provider, month) DO UPDATE SET requests = api_usage.requests + 1
+       WHERE api_usage.requests < $3
+     RETURNING requests`,
+    [provider, monthKey(), limit],
+  );
+  return rows.length > 0;
+}
+
+export async function apiUsageThisMonth(provider: string): Promise<number> {
+  const { rows } = await getPool().query(`SELECT requests FROM api_usage WHERE provider = $1 AND month = $2`, [provider, monthKey()]);
+  return rows[0]?.requests ?? 0;
+}
+
+/** When a source last fetched listings for a city without error, or null if never. */
+export async function lastSuccessfulRun(source: string, city: CityId): Promise<Date | null> {
+  const { rows } = await getPool().query(
+    `SELECT max(started_at) AS t FROM ingest_runs WHERE source = $1 AND city = $2 AND error IS NULL AND fetched > 0`,
+    [source, city],
+  );
+  return rows[0]?.t ?? null;
 }
 
 export interface ListingEvent {

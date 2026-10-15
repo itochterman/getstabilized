@@ -1,6 +1,6 @@
 import type { CityRules } from "@getstabilized/core";
 import { loadSampleListings } from "./sample";
-import type { ListingSource, RawListing } from "./types";
+import type { FetchResult, ListingSource, RawListing } from "./types";
 
 const OPENERS = ["Bright", "Quiet", "Sunny", "Spacious", "Updated", "Charming", "Top floor", "Corner"];
 const EXTRAS = [
@@ -24,10 +24,9 @@ function pick<T>(arr: T[], rnd: () => number): T {
 export function makeDemoSource(rnd: () => number = Math.random): ListingSource {
   return {
     id: "demo",
-    fullSnapshot: false,
-    async fetch(city: CityRules): Promise<RawListing[]> {
+    async fetch(city: CityRules): Promise<FetchResult> {
       const base = loadSampleListings(city);
-      if (base.length === 0) return [];
+      if (base.length === 0) return { listings: [], complete: false };
       const count = 1 + Math.floor(rnd() * 2);
       const out: RawListing[] = [];
       for (let i = 0; i < count; i++) {
@@ -51,7 +50,7 @@ export function makeDemoSource(rnd: () => number = Math.random): ListingSource {
           listedAt: new Date().toISOString(),
         });
       }
-      return out;
+      return { listings: out, complete: false };
     },
   };
 }

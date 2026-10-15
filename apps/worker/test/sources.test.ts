@@ -38,19 +38,57 @@ describe("DataSF importer", () => {
 });
 
 describe("RentCast source", () => {
-  it("maps a listing", () => {
-    const m = mapRentcast({ id: "abc", addressLine1: "1650 Golden Gate Ave", addressLine2: "Apt 4", propertyType: "Apartment", bedrooms: 1, bathrooms: 1, price: 2687, yearBuilt: 1912, zipCode: "94115" });
-    expect(m).toMatchObject({ sourceId: "abc", address: "1650 Golden Gate Ave Apt 4", beds: 1, rent: 2687, propertyType: "apartment", yearBuilt: 1912 });
+  const sample = {
+    id: "abc", addressLine1: "1650 Golden Gate Ave", addressLine2: "Apt 4", propertyType: "Apartment", bedrooms: 1, bathrooms: 1,
+    price: 2687, yearBuilt: 1912, zipCode: "94115", mlsNumber: "424001", daysOnMarket: 3,
+    listingAgent: { name: "Pat Lee", phone: "4155550100", email: "pat@example.com", website: "" },
+    listingOffice: { name: "Golden Gate Rentals", phone: "4155550101" },
+    history: { "2023-03-01": { event: "Rental Listing", price: 2550, listedDate: "2023-03-01T00:00:00.000Z" } },
+  };
+
+  it("maps contacts, MLS number, and price history", () => {
+    const m = mapRentcast(sample);
+    expect(m).toMatchObject({ sourceId: "abc", address: "1650 Golden Gate Ave Apt 4", beds: 1, rent: 2687, propertyType: "apartment", yearBuilt: 1912, mlsNumber: "424001", daysOnMarket: 3 });
+    expect(m?.contacts).toEqual([
+      { role: "agent", name: "Pat Lee", phone: "4155550100", email: "pat@example.com", website: null },
+      { role: "office", name: "Golden Gate Rentals", phone: "4155550101", email: null, website: null },
+    ]);
+    expect(m?.priceHistory).toEqual([{ date: "2023-03-01", price: 2550, event: "Rental Listing" }]);
     expect(mapRentcast({ id: "x" })).toBeNull();
   });
-  it("sends the API key and stops on a short page", async () => {
+
+  it("asks the budget before every request and stops when it says no", async () => {
+    let calls = 0;
+    let allowed = 1;
+    const fake = (async () => {
+      calls++;
+      return new Response(JSON.stringify(Array.from({ length: 500 }, (_, i) => ({ ...sample, id: String(i) }))));
+    }) as unknown as typeof fetch;
+    const src = makeRentcastSource("k", { fetchImpl: fake, maxPagesPerRun: 3, budget: { reserve: async () => allowed-- > 0 } });
+    const r = await src.fetch(CITIES.sf);
+    expect(calls).toBe(1);
+    expect(r.listings).toHaveLength(500);
+    expect(r.complete).toBe(false);
+  });
+
+  it("skips without any request when the budget says so", async () => {
+    let calls = 0;
+    const fake = (async () => { calls++; return new Response("[]"); }) as unknown as typeof fetch;
+    const src = makeRentcastSource("k", { fetchImpl: fake, budget: { reserve: async () => true, shouldSkip: async () => "fetched 3h ago" } });
+    const r = await src.fetch(CITIES.sf);
+    expect(calls).toBe(0);
+    expect(r.skipped).toBe("fetched 3h ago");
+  });
+
+  it("sends the API key and reports a complete fetch on a short page", async () => {
     let seen: Headers | undefined;
     const fake = (async (_u: URL, init: RequestInit) => {
       seen = new Headers(init.headers);
       return new Response(JSON.stringify([{ id: "1", addressLine1: "1 A St", price: 2000, bedrooms: 0 }]));
     }) as unknown as typeof fetch;
-    const out = await makeRentcastSource("k", fake).fetch(CITIES.sf);
-    expect(out).toHaveLength(1);
+    const r = await makeRentcastSource("k", { fetchImpl: fake, budget: { reserve: async () => true } }).fetch(CITIES.sf);
+    expect(r.listings).toHaveLength(1);
+    expect(r.complete).toBe(true);
     expect(seen?.get("X-Api-Key")).toBe("k");
   });
 });
@@ -58,8 +96,8 @@ describe("RentCast source", () => {
 describe("demo source", () => {
   it("produces 1 or 2 new listings with unique ids", async () => {
     const src = makeDemoSource();
-    const a = await src.fetch(CITIES.sf);
-    const b = await src.fetch(CITIES.sf);
+    const a = (await src.fetch(CITIES.sf)).listings;
+    const b = (await src.fetch(CITIES.sf)).listings;
     expect(a.length).toBeGreaterThanOrEqual(1);
     expect(a.length).toBeLessThanOrEqual(2);
     expect(new Set([...a, ...b].map((l) => l.sourceId)).size).toBe(a.length + b.length);

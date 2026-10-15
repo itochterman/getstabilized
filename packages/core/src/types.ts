@@ -27,6 +27,22 @@ export interface Reason {
   text: string;
 }
 
+/** Who to contact about a listing, as provided by the listing source. */
+export interface ListingContact {
+  role: "agent" | "office" | "builder";
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
+/** A past listing of the same unit. */
+export interface PriceEvent {
+  date: string; // YYYY-MM-DD
+  price: number;
+  event: string;
+}
+
 export interface Assessment {
   score: number;
   tier: Tier;
