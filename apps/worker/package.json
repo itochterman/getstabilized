@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@getstabilized/core": "*",
-    "@getstabilized/db": "*"
+    "@getstabilized/db": "*",
+    "tsx": "4.20.3"
   }
 }

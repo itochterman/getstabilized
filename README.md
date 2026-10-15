@@ -101,6 +101,15 @@ Listing data is the hard part of this product. Zillow, StreetEasy, and Craigslis
 | `POST /api/saved-searches` `{ email, filters }` | Save an alert |
 | `GET /api/health` | Listing and building counts per city |
 
+## Deploy on Railway
+
+The web app keeps live connections open, so it needs an always on server rather than serverless functions.
+
+1. New Project, Deploy from GitHub repo, pick this repo. This becomes the **web** service.
+2. Add a PostgreSQL database to the project.
+3. Web service variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`. Build command `npm run build`. Start command `npm run db:migrate && npm start`. Under Networking, generate a public domain.
+4. Add a second service from the same repo named **worker**. Variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `LISTING_SOURCES=sample,demo`, `INGEST_INTERVAL_MINUTES=5`. Start command `npm run seed && npm run worker`. No public domain.
+
 ## Roadmap
 
 1. Building importers for LA (County Assessor), Oakland (Alameda County), NYC (PLUTO, HCR registered buildings, DOF tax benefits), and DC.
