@@ -101,7 +101,13 @@ Listing data is the hard part of this product. Zillow, StreetEasy, and Craigslis
 | `POST /api/saved-searches` `{ email, filters }` | Save an alert |
 | `GET /api/health` | Listing and building counts per city |
 
-## Deploy on Railway
+## Deploy for free
+
+* **Database:** [Neon](https://neon.com) free plan. Use the direct connection string (not the pooled one), because live updates rely on `LISTEN`.
+* **Website:** [Render](https://render.com) free web service. Build command `npm install && npm run build`, start command `npm run db:migrate && npm start`, environment variable `DATABASE_URL`. It sleeps after 15 idle minutes and takes about a minute to wake.
+* **Worker:** GitHub Actions, using `.github/workflows/ingest.yml`. Add `DATABASE_URL` as a repository secret, run the workflow once by hand with `seed`, and it then ingests hourly.
+
+## Deploy on Railway (paid, always on)
 
 The web app keeps live connections open, so it needs an always on server rather than serverless functions.
 

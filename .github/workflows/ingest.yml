@@ -1,0 +1,41 @@
+# Runs the listing worker on a schedule using GitHub's free Actions minutes,
+# so hosting needs no always-on worker. Add DATABASE_URL (and RENTCAST_API_KEY if
+# you use it) under Settings > Secrets and variables > Actions.
+name: Ingest listings
+
+on:
+  schedule:
+    - cron: "17 * * * *" # hourly
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "seed (first time) or ingest"
+        default: ingest
+        type: choice
+        options: [ingest, seed]
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RENTCAST_API_KEY: ${{ secrets.RENTCAST_API_KEY }}
+      LISTING_SOURCES: ${{ vars.LISTING_SOURCES || 'sample,demo' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Seed
+        if: ${{ github.event.inputs.command == 'seed' }}
+        run: npm run seed
+      - name: Ingest
+        if: ${{ github.event.inputs.command != 'seed' }}
+        run: npm run db:migrate && npm run ingest
