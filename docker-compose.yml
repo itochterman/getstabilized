@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: getstabilized
+      POSTGRES_PASSWORD: getstabilized
+      POSTGRES_DB: getstabilized
+    ports:
+      - "5432:5432"
+    volumes:
+      - getstabilized-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U getstabilized"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  getstabilized-db:

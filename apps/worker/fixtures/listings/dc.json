@@ -1,0 +1,72 @@
+[
+ {
+  "sourceId": "dc-001",
+  "title": "Rowhouse 1BR apartment",
+  "address": "1428 Girard St NW #3",
+  "neighborhood": "Columbia Heights",
+  "beds": 1,
+  "baths": 1,
+  "rent": 1987.62,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "Rent stabilized unit in a converted rowhouse building. Near the Green line.",
+  "yearBuilt": 1925,
+  "units": 6
+ },
+ {
+  "sourceId": "dc-002",
+  "title": "Luxury 1BR at the Wharf",
+  "address": "650 Wharf St SW #902",
+  "neighborhood": "Southwest Waterfront",
+  "beds": 1,
+  "baths": 1,
+  "rent": 3350,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "Luxury building on the Wharf with pool and concierge.",
+  "yearBuilt": 2019,
+  "units": 300
+ },
+ {
+  "sourceId": "dc-003",
+  "title": "Art deco 2BR",
+  "address": "1801 Calvert St NW #504",
+  "neighborhood": "Adams Morgan",
+  "beds": 2,
+  "baths": 1,
+  "rent": 2711.09,
+  "propertyType": "apartment",
+  "noFee": false,
+  "description": "Art deco elevator building. Increases follow the CPI increase each year.",
+  "yearBuilt": 1938,
+  "units": 40
+ },
+ {
+  "sourceId": "dc-004",
+  "title": "English basement studio",
+  "address": "612 E Capitol St NE",
+  "neighborhood": "Capitol Hill",
+  "beds": 0,
+  "baths": 1,
+  "rent": 1650,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "English basement studio in an owner occupied rowhouse.",
+  "yearBuilt": 1910,
+  "units": 2
+ },
+ {
+  "sourceId": "dc-005",
+  "title": "Condo 2BR with balcony",
+  "address": "1100 1st St SE #807",
+  "neighborhood": "Navy Yard",
+  "beds": 2,
+  "baths": 1,
+  "rent": 3600,
+  "propertyType": "condo",
+  "noFee": false,
+  "description": "Condo with balcony and river views.",
+  "yearBuilt": 2014,
+  "units": 120
+ }
+]

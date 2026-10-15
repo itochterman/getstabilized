@@ -1,0 +1,72 @@
+[
+ {
+  "sourceId": "oak-001",
+  "title": "Craftsman 1BR upper",
+  "address": "5128 Telegraph Ave #B",
+  "neighborhood": "Temescal",
+  "beds": 1,
+  "baths": 1,
+  "rent": 2041.3,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "Upper unit in a craftsman fourplex. Covered by the Rent Adjustment Program.",
+  "yearBuilt": 1915,
+  "units": 4
+ },
+ {
+  "sourceId": "oak-002",
+  "title": "Lake view 2BR",
+  "address": "244 Lee St #501",
+  "neighborhood": "Adams Point",
+  "beds": 2,
+  "baths": 1,
+  "rent": 2689.75,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "Views of Lake Merritt, elevator and laundry room.",
+  "yearBuilt": 1962,
+  "units": 30
+ },
+ {
+  "sourceId": "oak-003",
+  "title": "New 1BR with rooftop",
+  "address": "2100 Telegraph Ave #808",
+  "neighborhood": "Uptown",
+  "beds": 1,
+  "baths": 1,
+  "rent": 2895,
+  "propertyType": "apartment",
+  "noFee": true,
+  "description": "Luxury new construction with rooftop lounge and gym.",
+  "yearBuilt": 2020,
+  "units": 150
+ },
+ {
+  "sourceId": "oak-004",
+  "title": "Studio near Grand Lake",
+  "address": "3420 Lakeshore Ave #2",
+  "neighborhood": "Grand Lake",
+  "beds": 0,
+  "baths": 1,
+  "rent": 1495,
+  "propertyType": "apartment",
+  "noFee": false,
+  "description": "Updated studio near the Grand Lake theater.",
+  "yearBuilt": 1988,
+  "units": 12
+ },
+ {
+  "sourceId": "oak-005",
+  "title": "2BR cottage with yard",
+  "address": "3317 Foothill Blvd",
+  "neighborhood": "Fruitvale",
+  "beds": 2,
+  "baths": 1,
+  "rent": 2600,
+  "propertyType": "single_family",
+  "noFee": true,
+  "description": "Detached cottage with private yard and driveway.",
+  "yearBuilt": 1940,
+  "units": 1
+ }
+]

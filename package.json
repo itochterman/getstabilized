@@ -1,0 +1,31 @@
+{
+  "name": "getstabilized",
+  "private": true,
+  "description": "Search apartment listings and estimate which ones are rent controlled or rent stabilized.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:migrate": "npm -w @getstabilized/db run migrate",
+    "seed": "npm -w @getstabilized/worker run seed",
+    "import:buildings": "npm -w @getstabilized/worker run cli -- import-buildings",
+    "ingest": "npm -w @getstabilized/worker run cli -- ingest",
+    "worker": "npm -w @getstabilized/worker run cli -- ingest --watch",
+    "dev": "npm -w @getstabilized/web run dev",
+    "build": "npm -w @getstabilized/web run build",
+    "start": "npm -w @getstabilized/web run start",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core && tsc -p packages/db && tsc -p apps/worker && tsc -p apps/web"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "tsx": "4.20.3",
+    "typescript": "5.8.3",
+    "vitest": "3.2.4"
+  }
+}

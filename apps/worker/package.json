@@ -1,0 +1,14 @@
+{
+  "name": "@getstabilized/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "seed": "tsx src/cli.ts seed"
+  },
+  "dependencies": {
+    "@getstabilized/core": "*",
+    "@getstabilized/db": "*"
+  }
+}
